@@ -995,127 +995,141 @@
         setTimeout(gameController, 3000);
     }
 
+    async function handleSeerAction() {
+        const seer = getAlivePlayers().find(p => p.role === 'seer');
+        if (!seer) return; // No seer in game or seer is dead.
+
+        updatePhaseDisplay('🔮 The Seer is peeking...');
+        let targetName;
+        const possibleTargets = getAlivePlayers().filter(p => p.name !== seer.name);
+
+        if (seer.isHuman) {
+            gameState.waitingForHumanAction = { type: 'seer_peek', targets: possibleTargets.map(p => p.name) };
+            saveGameState();
+            renderActionPanelForSeer(possibleTargets);
+            targetName = await waitForHumanAction();
+            gameState.waitingForHumanAction = null;
+        } else {
+            // AI Seer logic
+            const response = await callGemini(createPrompt(seer, "seer_action", { targets: possibleTargets.map(p => p.name) }), seer);
+            try {
+                logEvent(`🧠 ${seer.name}'s thoughts: ${response.reasoning}`, seer, true);
+                seer.scratchpad = response.updatedScratchpad;
+                targetName = response.peek;
+            } catch(e) {
+                 targetName = possibleTargets.length > 0 ? possibleTargets[Math.floor(Math.random() * possibleTargets.length)].name : null;
+            }
+        }
+
+        const target = getPlayerByName(targetName);
+        if (target) {
+            gameState.seerPeekResult = {seer: seer.name, target: target.name, role: target.role };
+            logEvent(`The Seer has chosen their target.`, null, false);
+            if (seer.isHuman) {
+                logEvent(`(Your vision) You peeked at ${target.name} and discovered they are a ${target.role.toUpperCase()}.`);
+            } else if (gameState.humanPlayer.role === 'OBSERVER') {
+                logEvent(`(Observer) The Seer (${seer.name}) peeked at ${target.name} and discovered they are a ${target.role.toUpperCase()}.`);
+            }
+        }
+    }
+
+    async function handleWolvesAction() {
+        const wolves = getAlivePlayers().filter(p => p.role === 'wolf');
+        if (wolves.length === 0) return;
+
+        updatePhaseDisplay('🐺 The Werewolves are hunting...');
+        const possibleTargets = getAlivePlayers().filter(p => p.role !== 'wolf');
+        let targetName;
+        const humanWolf = wolves.find(w => w.isHuman);
+
+        if (humanWolf) {
+            gameState.waitingForHumanAction = { type: 'wolf_kill', targets: possibleTargets.map(p => p.name) };
+            saveGameState();
+            renderActionPanelForWolves(possibleTargets);
+            targetName = await waitForHumanAction();
+            gameState.waitingForHumanAction = null;
+        } else {
+            // For AI wolves, we can just have one make the decision for the pack.
+            const actingWolf = wolves[0];
+            const prompt = createPrompt(actingWolf, "wolf_action", {
+                partner: wolves.length > 1 ? wolves.find(w => w.name !== actingWolf.name).name : null,
+                targets: possibleTargets.map(p => p.name)
+            });
+            const response = await callGemini(prompt, actingWolf);
+            try {
+                logEvent(`🧠 Wolf thoughts (${actingWolf.name}): ${response.reasoning}`, actingWolf, true);
+                actingWolf.scratchpad = response.updatedScratchpad;
+                targetName = response.kill;
+            } catch(e) {
+                targetName = possibleTargets.length > 0 ? possibleTargets[Math.floor(Math.random() * possibleTargets.length)].name : null;
+            }
+        }
+        gameState.nightTarget = targetName;
+        if(targetName) {
+            if(gameState.isSoundOn) sounds.attackSound();
+            logEvent(`The werewolves have chosen a target.`, null, false);
+        }
+    }
+
+    async function handleWitchAction() {
+        const witch = getAlivePlayers().find(p => p.role === 'witch');
+        if (!witch) return { witchSaved: false };
+
+        updatePhaseDisplay('🧙‍♀️ The Witch is brewing...');
+        let action = { type: 'none' };
+        let witchSaved = false;
+        const possibleKillTargets = getAlivePlayers().filter(p => p.name !== witch.name);
+
+        if (witch.isHuman) {
+           gameState.waitingForHumanAction = { type: 'witch_action', targets: possibleKillTargets.map(p => p.name) };
+           saveGameState();
+           renderActionPanelForWitch(possibleKillTargets);
+           action = await waitForHumanAction();
+           gameState.waitingForHumanAction = null;
+        } else {
+           const prompt = createPrompt(witch, "witch_action", {
+               potions: gameState.witchPotions,
+               target: gameState.nightTarget,
+               targets: possibleKillTargets.map(p => p.name)
+           });
+           const response = await callGemini(prompt, witch);
+           try {
+               logEvent(`🧠 Witch thoughts (${witch.name}): ${response.reasoning}`, witch, true);
+               witch.scratchpad = response.updatedScratchpad;
+               action = response.action;
+           } catch(e) { /* AI does nothing */ }
+        }
+
+        if (action.type === 'heal' && gameState.witchPotions.heal && gameState.nightTarget) {
+            witchSaved = true;
+            if(gameState.isSoundOn) sounds.saveSound();
+            gameState.witchPotions.heal = false;
+            logEvent(`The Witch used the heal potion!`);
+        } else if (action.type === 'kill' && gameState.witchPotions.kill && action.target) {
+           const target = getPlayerByName(action.target);
+           if (target && target.isAlive) {
+               target.isAlive = false;
+               if(gameState.isSoundOn) sounds.attackSound();
+               logEvent(`The Witch used the kill potion on ${target.name}! They were a ${target.role}.`);
+               await handlePlayerDeath(target);
+           }
+           gameState.witchPotions.kill = false;
+        } else {
+            logEvent(`The Witch did nothing.`);
+        }
+        return { witchSaved };
+    }
+
     async function handleNightPhase() {
         if(gameState.isSoundOn) playMusicLoop('night');
         logEvent(await getNarratorText(`Night ${gameState.day} is falling. The village holds its breath.`));
-        
+
         gameState.nightTarget = null;
         gameState.seerPeekResult = null;
-        let witchSaved = false;
 
-        const seer = getAlivePlayers().find(p => p.role === 'seer');
-        if (seer) {
-            updatePhaseDisplay('🔮 The Seer is peeking...');
-            let targetName;
-            const possibleTargets = getAlivePlayers().filter(p => p.name !== seer.name);
-            if (seer.isHuman) {
-                gameState.waitingForHumanAction = { type: 'seer_peek', targets: possibleTargets.map(p => p.name) };
-                saveGameState();
-                renderActionPanelForSeer(possibleTargets);
-                targetName = await waitForHumanAction();
-                gameState.waitingForHumanAction = null;
-            } else {
-                const response = await callGemini(createPrompt(seer, "seer_action", { targets: possibleTargets.map(p => p.name) }), seer);
-                try {
-                    logEvent(`🧠 ${seer.name}'s thoughts: ${response.reasoning}`, seer, true);
-                    seer.scratchpad = response.updatedScratchpad;
-                    targetName = response.peek;
-                } catch(e) {
-                     targetName = possibleTargets[Math.floor(Math.random() * possibleTargets.length)].name;
-                }
-            }
-            const target = getPlayerByName(targetName);
-            if (target) {
-                gameState.seerPeekResult = {seer: seer.name, target: target.name, role: target.role };
-                logEvent(`The Seer has chosen their target.`, null, false);
-                if (seer.isHuman) {
-                    logEvent(`(Your vision) You peeked at ${target.name} and discovered they are a ${target.role.toUpperCase()}.`);
-                } else if (gameState.humanPlayer.role === 'OBSERVER') {
-                    logEvent(`(Observer) The Seer (${seer.name}) peeked at ${target.name} and discovered they are a ${target.role.toUpperCase()}.`);
-                }
-            }
-        }
-        
-        const wolves = getAlivePlayers().filter(p => p.role === 'wolf');
-        if (wolves.length > 0) {
-            updatePhaseDisplay('🐺 The Werewolves are hunting...');
-            const possibleTargets = getAlivePlayers().filter(p => p.role !== 'wolf');
-            let targetName;
-            const humanWolf = wolves.find(w => w.isHuman);
-
-            if (humanWolf) {
-                gameState.waitingForHumanAction = { type: 'wolf_kill', targets: possibleTargets.map(p => p.name) };
-                saveGameState();
-                renderActionPanelForWolves(possibleTargets);
-                targetName = await waitForHumanAction();
-                gameState.waitingForHumanAction = null;
-            } else {
-                // For AI wolves, we can just have one make the decision for the pack.
-                const actingWolf = wolves[0];
-                const prompt = createPrompt(actingWolf, "wolf_action", {
-                    partner: wolves.length > 1 ? wolves.find(w => w.name !== actingWolf.name).name : null,
-                    targets: possibleTargets.map(p => p.name)
-                });
-                const response = await callGemini(prompt, actingWolf);
-                try {
-                    logEvent(`🧠 Wolf thoughts (${actingWolf.name}): ${response.reasoning}`, actingWolf, true);
-                    actingWolf.scratchpad = response.updatedScratchpad;
-                    targetName = response.kill;
-                } catch(e) {
-                    targetName = possibleTargets.length > 0 ? possibleTargets[Math.floor(Math.random() * possibleTargets.length)].name : null;
-                }
-            }
-            gameState.nightTarget = targetName;
-            if(targetName) {
-                if(gameState.isSoundOn) sounds.attackSound();
-                logEvent(`The werewolves have chosen a target.`, null, false);
-            }
-        }
-
-        const witch = getAlivePlayers().find(p => p.role === 'witch');
-        if (witch) {
-             updatePhaseDisplay('🧙‍♀️ The Witch is brewing...');
-             let action = { type: 'none' };
-             const possibleKillTargets = getAlivePlayers().filter(p => p.name !== witch.name);
-
-             if (witch.isHuman) {
-                gameState.waitingForHumanAction = { type: 'witch_action', targets: possibleKillTargets.map(p => p.name) };
-                saveGameState();
-                renderActionPanelForWitch(possibleKillTargets);
-                action = await waitForHumanAction();
-                gameState.waitingForHumanAction = null;
-             } else {
-                const prompt = createPrompt(witch, "witch_action", {
-                    potions: gameState.witchPotions,
-                    target: gameState.nightTarget,
-                    targets: possibleKillTargets.map(p => p.name)
-                });
-                const response = await callGemini(prompt, witch);
-                try {
-                    logEvent(`🧠 Witch thoughts (${witch.name}): ${response.reasoning}`, witch, true);
-                    witch.scratchpad = response.updatedScratchpad;
-                    action = response.action;
-                } catch(e) { /* AI does nothing */ }
-             }
-
-             if (action.type === 'heal' && gameState.witchPotions.heal && gameState.nightTarget) {
-                 witchSaved = true;
-                 if(gameState.isSoundOn) sounds.saveSound();
-                 gameState.witchPotions.heal = false;
-                 logEvent(`The Witch used the heal potion!`);
-             } else if (action.type === 'kill' && gameState.witchPotions.kill && action.target) {
-                const target = getPlayerByName(action.target);
-                if (target && target.isAlive) {
-                    target.isAlive = false;
-                    if(gameState.isSoundOn) sounds.attackSound();
-                    logEvent(`The Witch used the kill potion on ${target.name}! They were a ${target.role}.`);
-                    await handlePlayerDeath(target);
-                }
-                gameState.witchPotions.kill = false;
-             } else {
-                 logEvent(`The Witch did nothing.`);
-             }
-        }
+        await handleSeerAction();
+        await handleWolvesAction();
+        const { witchSaved } = await handleWitchAction();
         
         updatePhaseDisplay('Resolving the night...');
         if (gameState.nightTarget && !witchSaved) {
