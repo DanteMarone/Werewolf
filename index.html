@@ -297,32 +297,196 @@
         'wolf': { icon: '🐺', team: 'Werewolves' }, 'seer': { icon: '🔮', team: 'Villagers' },
         'witch': { icon: '🧙‍♀️', team: 'Villagers' }, 'villager': { icon: '🙂', team: 'Villagers' }, 'mayor': {icon: '👑', team: 'Special'}
     };
+
+    // --- Music Data ---
+    const MUSIC_DATA = {
+        title: {
+          "header": { "name": "HuntingSeason_Loop", "tempos": [{ "bpm": 140, "ticks": 0 }] },
+          "tracks": [
+            { "instrument": { "name": "strings pad" }, "notes": [ { "name": "D3", "time": 0, "duration": 1.7, "velocity": 0.6 }, { "name": "F3", "time": 0, "duration": 1.7, "velocity": 0.6 }, { "name": "A3", "time": 0, "duration": 1.7, "velocity": 0.6 } ] },
+            { "instrument": { "name": "timpani" }, "notes": [ { "name": "D2", "time": 0, "duration": 0.5, "velocity": 1 }, { "name": "D2", "time": 0.85, "duration": 0.5, "velocity": 1 } ] },
+            { "instrument": { "name": "percussion" }, "notes": [ { "name": "C4", "time": 0.425, "duration": 0.1, "velocity": 0.8 }, { "name": "C#4", "time": 0.637, "duration": 0.1, "velocity": 0.8 }, { "name": "C4", "time": 1.275, "duration": 0.1, "velocity": 0.8 }, { "name": "C#4", "time": 1.487, "duration": 0.1, "velocity": 0.8 } ] },
+            { "instrument": { "name": "brass" }, "notes": [ { "name": "D4", "time": 0, "duration": 0.2, "velocity": 0.9 }, { "name": "A4", "time": 0.85, "duration": 0.2, "velocity": 0.9 } ] },
+            { "instrument": { "name": "choir pad" }, "notes": [ { "name": "A4", "time": 0, "duration": 1.7, "velocity": 0.5 } ] }
+          ]
+        },
+        discussion: {
+          "header": { "name": "Accusation_Loop", "tempos": [{ "bpm": 115, "ticks": 0 }] },
+          "tracks": [
+            { "instrument": { "name": "strings" }, "notes": [ { "name": "G3", "time": 0, "duration": 0.25, "velocity": 0.9 }, { "name": "G3", "time": 0.52, "duration": 0.25, "velocity": 0.9 }, { "name": "G#3", "time": 1.04, "duration": 0.25, "velocity": 0.9 }, { "name": "G3", "time": 1.56, "duration": 0.25, "velocity": 0.9 } ] },
+            { "instrument": { "name": "timpani" }, "notes": [ { "name": "C2", "time": 0, "duration": 1, "velocity": 0.8 }, { "name": "C2", "time": 1.04, "duration": 1, "velocity": 0.8 } ] },
+            { "instrument": { "name": "percussion" }, "notes": [ { "name": "C5", "time": 0.52, "duration": 0.1, "velocity": 0.7 }, { "name": "C5", "time": 1.56, "duration": 0.1, "velocity": 0.7 } ] },
+            { "instrument": { "name": "brass" }, "notes": [ { "name": "D#4", "time": 0, "duration": 2.08, "velocity": 0.6 } ] },
+            { "instrument": { "name": "choir pad" }, "notes": [ { "name": "C4", "time": 0, "duration": 2.08, "velocity": 0.5 } ] }
+          ]
+        },
+        vote: {
+          "header": { "name": "VillageVote_Loop", "tempos": [ { "bpm": 130, "ticks": 0 } ] },
+          "tracks": [
+            { "instrument": { "name": "low strings" }, "notes": [ { "name": "D3", "time": 0, "duration": 1.8, "velocity": 0.6 }, { "name": "A3", "time": 0, "duration": 1.8, "velocity": 0.6 } ] },
+            { "instrument": { "name": "glockenspiel" }, "notes": [ { "name": "A4", "time": 0.46, "duration": 0.2, "velocity": 0.8 }, { "name": "C5", "time": 0.92, "duration": 0.2, "velocity": 0.8 }, { "name": "D5", "time": 1.38, "duration": 0.2, "velocity": 0.8 } ] },
+            { "instrument": { "name": "clock tick" }, "notes": [ { "name": "B5", "time": 0, "duration": 0.1, "velocity": 0.7 }, { "name": "B5", "time": 0.23, "duration": 0.1, "velocity": 0.7 }, { "name": "B5", "time": 0.46, "duration": 0.1, "velocity": 0.7 }, { "name": "B5", "time": 0.69, "duration": 0.1, "velocity": 0.7 }, { "name": "B5", "time": 0.92, "duration": 0.1, "velocity": 0.7 }, { "name": "B5", "time": 1.15, "duration": 0.1, "velocity": 0.7 }, { "name": "B5", "time": 1.38, "duration": 0.1, "velocity": 0.7 }, { "name": "B5", "time": 1.61, "duration": 0.1, "velocity": 0.7 } ] },
+            { "instrument": { "name": "pizzicato" }, "notes": [ { "name": "D2", "time": 0, "duration": 0.5, "velocity": 1 }, { "name": "A2", "time": 0.92, "duration": 0.5, "velocity": 1 } ] }
+          ]
+        },
+        defense: {
+          "header": { "name": "Defense_Loop", "tempos": [{ "bpm": 100, "ticks": 0 }] },
+          "tracks": [
+            { "instrument": { "name": "pizzicato strings" }, "notes": [ { "name": "C3", "time": 0, "duration": 0.3, "velocity": 0.9 }, { "name": "G3", "time": 0.6, "duration": 0.3, "velocity": 0.8 }, { "name": "C3", "time": 1.2, "duration": 0.3, "velocity": 0.9 }, { "name": "G3", "time": 1.8, "duration": 0.3, "velocity": 0.8 } ] },
+            { "instrument": { "name": "harp" }, "notes": [ { "name": "C5", "time": 0, "duration": 0.3, "velocity": 0.7 }, { "name": "E5", "time": 0.3, "duration": 0.3, "velocity": 0.7 }, { "name": "G5", "time": 0.6, "duration": 0.3, "velocity": 0.7 }, { "name": "C6", "time": 0.9, "duration": 0.3, "velocity": 0.7 } ] },
+            { "instrument": { "name": "light percussion" }, "notes": [ { "name": "G5", "time": 0.3, "duration": 0.1, "velocity": 0.5 }, { "name": "G5", "time": 0.9, "duration": 0.1, "velocity": 0.5 }, { "name": "G5", "time": 1.5, "duration": 0.1, "velocity": 0.5 }, { "name": "G5", "time": 2.1, "duration": 0.1, "velocity": 0.5 } ] },
+            { "instrument": { "name": "oboe" }, "notes": [ { "name": "E4", "time": 0, "duration": 1.1, "velocity": 1 }, { "name": "G4", "time": 1.2, "duration": 1.1, "velocity": 1 } ] },
+            { "instrument": { "name": "warm pad" }, "notes": [ { "name": "C4", "time": 0, "duration": 2.4, "velocity": 0.4 }, { "name": "E4", "time": 0, "duration": 2.4, "velocity": 0.4 }, { "name": "G4", "time": 0, "duration": 2.4, "velocity": 0.4 } ] }
+          ]
+        },
+        death: {
+          "header": { "name": "Villager_Death_Loop", "tempos": [{ "bpm": 75, "ticks": 0 }] },
+          "tracks": [
+            { "instrument": { "name": "dramatic strings" }, "notes": [ { "name": "A2", "time": 0, "duration": 4, "velocity": 0.7 }, { "name": "C3", "time": 0, "duration": 4, "velocity": 0.7 }, { "name": "E3", "time": 0, "duration": 4, "velocity": 0.7 } ] },
+            { "instrument": { "name": "solo cello" }, "notes": [ { "name": "E4", "time": 0.5, "duration": 1, "velocity": 0.9 }, { "name": "D4", "time": 2, "duration": 1, "velocity": 0.9 }, { "name": "C4", "time": 3.5, "duration": 1.5, "velocity": 0.8 } ] }
+          ]
+        }
+    };
     
     // --- Audio Engine ---
-    let sounds = {};
+    let sounds = {
+        isLoaded: false,
+        activeLoop: null
+    };
+
+    const synthMap = {
+        'default': () => new Tone.PolySynth(Tone.FMSynth).toDestination(),
+        'strings': () => new Tone.PolySynth(Tone.FMSynth, { harmonicity: 1.5, envelope: { attack: 0.5 } }).toDestination(),
+        'timpani': () => new Tone.MembraneSynth({ octaves: 4, pitchDecay: 0.1 }).toDestination(),
+        'percussion': () => new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.001, decay: 0.1, sustain: 0 } }).toDestination(),
+        'brass': () => new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'sawtooth' } }).toDestination(),
+        'choir': () => new Tone.PolySynth(Tone.AMSynth, { envelope: { attack: 0.5 } }).toDestination(),
+        'low': () => new Tone.PolySynth(Tone.FMSynth, { harmonicity: 0.5, envelope: { attack: 0.5 } }).toDestination(),
+        'glockenspiel': () => new Tone.MetalSynth({ frequency: 200, harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5 }).toDestination(),
+        'clock': () => new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.001, decay: 0.05, sustain: 0 } }).toDestination(),
+        'pizzicato': () => new Tone.PluckSynth().toDestination(),
+        'harp': () => new Tone.PluckSynth({ attackNoise: 0.5, dampening: 4000, resonance: 0.9 }).toDestination(),
+        'oboe': () => new Tone.MonoSynth({ oscillator: { type: 'sawtooth' }, filter: { Q: 2 }, envelope: { attack: 0.1 } }).toDestination(),
+        'warm': () => new Tone.PolySynth(Tone.AMSynth, { envelope: { attack: 1 } }).toDestination(),
+        'dramatic': () => new Tone.PolySynth(Tone.FMSynth, { harmonicity: 1.5, envelope: { attack: 0.3 } }).toDestination(),
+        'solo': () => new Tone.MonoSynth({ oscillator: { type: 'fatsawtooth' }, envelope: { attack: 0.1 } }).toDestination(),
+    };
+
+    function createMusicPart(midiData) {
+        const parts = [];
+        const synths = [];
+        let maxDuration = 0;
+
+        midiData.tracks.forEach(track => {
+            const instrumentName = track.instrument.name.split(' ')[0].toLowerCase();
+            const synth = synthMap[instrumentName] ? synthMap[instrumentName]() : synthMap['default']();
+            synths.push(synth);
+
+            const p = new Tone.Part((time, note) => {
+                synth.triggerAttackRelease(note.name, note.duration, time, note.velocity);
+            }, track.notes);
+            parts.push(p);
+
+            if (track.notes.length > 0) {
+                const lastNote = track.notes.reduce((latest, current) => {
+                    return ((current.time + current.duration) > (latest.time + latest.duration)) ? current : latest;
+                });
+                const trackDuration = lastNote.time + lastNote.duration;
+                if (trackDuration > maxDuration) {
+                    maxDuration = trackDuration;
+                }
+            }
+        });
+
+        return {
+            parts,
+            synths,
+            bpm: midiData.header.tempos[0].bpm,
+            duration: maxDuration
+        };
+    }
+
     function initializeAudio() {
-        const reverb = new Tone.Reverb(2).toDestination();
-        const chorus = new Tone.Chorus(4, 2.5, 0.7).toDestination().start();
+        if (sounds.isLoaded) return;
 
-        sounds.nightSynth = new Tone.DuoSynth({
-            vibratoAmount: 0.5, vibratoRate: 5, harmonicity: 1.5,
-            voice0: { volume: -10, portamento: 0, oscillator: { type: "sine" }, filterEnvelope: { attack: 0.01, decay: 0.25, sustain: 0.4, release: 1.2 }, envelope: { attack: 0.01, decay: 0.25, sustain: 0.4, release: 1.2 } },
-            voice1: { volume: -20, portamento: 0, oscillator: { type: "square" }, filterEnvelope: { attack: 0.01, decay: 0.5, sustain: 0.2, release: 2 }, envelope: { attack: 0.01, decay: 0.5, sustain: 0.2, release: 2 } }
-        }).connect(reverb);
+        try {
+            sounds.title = createMusicPart(MUSIC_DATA.title);
+            sounds.discussion = createMusicPart(MUSIC_DATA.discussion);
+            sounds.vote = createMusicPart(MUSIC_DATA.vote);
+            sounds.defense = createMusicPart(MUSIC_DATA.defense);
+            sounds.death = createMusicPart(MUSIC_DATA.death);
 
-        sounds.daySynth = new Tone.PolySynth(Tone.FMSynth, {
-            harmonicity: 3, modulationIndex: 10, detune: 0, oscillator: { type: "sine" },
-            envelope: { attack: 0.01, decay: 0.1, sustain: 0.9, release: 0.2 },
-            modulation: { type: "square" }, modulationEnvelope: { attack: 0.01, decay: 0.2, sustain: 0.8, release: 0.2 }
-        }).connect(chorus);
+            // Keep old sound effects and procedural night loop
+            const reverb = new Tone.Reverb(2).toDestination();
+            sounds.nightSynth = new Tone.DuoSynth({
+                vibratoAmount: 0.5, vibratoRate: 5, harmonicity: 1.5,
+                voice0: { volume: -10, portamento: 0, oscillator: { type: "sine" }, filterEnvelope: { attack: 0.01, decay: 0.25, sustain: 0.4, release: 1.2 }, envelope: { attack: 0.01, decay: 0.25, sustain: 0.4, release: 1.2 } },
+                voice1: { volume: -20, portamento: 0, oscillator: { type: "square" }, filterEnvelope: { attack: 0.01, decay: 0.5, sustain: 0.2, release: 2 }, envelope: { attack: 0.01, decay: 0.5, sustain: 0.2, release: 2 } }
+            }).connect(reverb);
+
+            sounds.night = {
+                parts: [new Tone.Sequence((time, note) => { sounds.nightSynth.triggerAttackRelease(note, '1n', time); }, ['C2', 'G2', 'Eb2', 'F2'], '1m')],
+                bpm: 60,
+                duration: '1m'
+            };
+
+            sounds.attackSound = () => new Tone.MetalSynth({ frequency: 50, envelope: { attack: 0.001, decay: 0.4, release: 0.2 }, harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5 }).toDestination().triggerAttackRelease("C1", "8n");
+            sounds.saveSound = () => new Tone.PluckSynth().toDestination().triggerAttackRelease("C5", "8n", "+0.1");
+            sounds.eliminateSound = () => new Tone.MembraneSynth({ pitchDecay: 0.05, octaves: 10, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.8, sustain: 0.01, release: 1.4, attackCurve: "exponential"} }).toDestination().triggerAttackRelease("C2", "4n");
+
+            sounds.isLoaded = true;
+            console.log("Audio assets loaded successfully.");
+
+        } catch (error) {
+            console.error("Failed to load audio assets:", error);
+        }
+    }
+
+    function playMusicLoop(name) {
+        if (!sounds.isLoaded || !sounds[name] || (sounds.activeLoop && sounds.activeLoop.name === name)) {
+            return;
+        }
+
+        if (sounds.activeLoop && sounds.activeLoop.parts) {
+            sounds.activeLoop.parts.forEach(p => p.stop(0));
+        }
+
+        const music = sounds[name];
+        music.name = name;
+        sounds.activeLoop = music;
+
+        Tone.Transport.bpm.value = music.bpm;
+        Tone.Transport.loop = true;
+        Tone.Transport.loopEnd = music.duration;
+
+        music.parts.forEach(p => p.start(0));
+
+        if (Tone.Transport.state !== 'started') {
+            Tone.Transport.start();
+        }
+    }
+
+    function playSfx(name) {
+        if (!sounds.isLoaded || !sounds[name]) return;
+
+        if (sounds.activeLoop && sounds.activeLoop.parts) {
+            sounds.activeLoop.parts.forEach(p => p.stop(0));
+        }
+        sounds.activeLoop = null;
+        Tone.Transport.stop();
+        Tone.Transport.cancel(0);
+
+        const sfx = sounds[name];
+        Tone.Transport.bpm.value = sfx.bpm;
+        Tone.Transport.loop = false;
         
-        sounds.attackSound = () => new Tone.MetalSynth({ frequency: 50, envelope: { attack: 0.001, decay: 0.4, release: 0.2 }, harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5 }).toDestination().triggerAttackRelease("C1", "8n");
-        sounds.saveSound = () => new Tone.PluckSynth().toDestination().triggerAttackRelease("C5", "8n", "+0.1");
-        sounds.eliminateSound = () => new Tone.MembraneSynth({ pitchDecay: 0.05, octaves: 10, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.8, sustain: 0.01, release: 1.4, attackCurve: "exponential"} }).toDestination().triggerAttackRelease("C2", "4n");
+        sfx.parts.forEach(p => p.start(0));
+        Tone.Transport.start();
 
-        sounds.dayLoop = new Tone.Sequence((time, note) => { sounds.daySynth.triggerAttackRelease(note, '2n', time); }, [["C4", "E4", "G4"], "A4", "F4", "G4"], '1n').start(0);
-        sounds.nightLoop = new Tone.Sequence((time, note) => { sounds.nightSynth.triggerAttackRelease(note, '1n', time); }, ['C2', 'G2', 'Eb2', 'F2'], '1m').start(0);
-        Tone.Transport.bpm.value = 60;
+        Tone.Transport.scheduleOnce(() => {
+            Tone.Transport.stop();
+            sfx.parts.forEach(p => p.stop(0));
+        }, sfx.duration);
     }
 
     // --- Gemini API Configuration ---
@@ -450,6 +614,7 @@
     }
 
     function renderActionPanelForDiscussion() {
+         if(gameState.isSoundOn) playMusicLoop('defense');
          actionPanel.innerHTML = `
             <p class="text-center mb-2 font-semibold">It's your turn to speak.</p>
             <div class="flex gap-2">
@@ -539,6 +704,11 @@
 
     // --- Core Game Logic ---
     window.setupGame = async (mode, customData = null) => {
+        if (sounds.activeLoop) {
+            sounds.activeLoop.parts.forEach(p => p.stop(0));
+            sounds.activeLoop = null;
+        }
+
         if (!gameState.isSoundOn) {
             try {
                 await Tone.start();
@@ -746,6 +916,7 @@
     }
     
     async function handleMayorVoting() {
+        if(gameState.isSoundOn) playMusicLoop('vote');
         const candidates = getAlivePlayers().filter(p => p.isCandidate);
         const votes = {};
         candidates.forEach(c => votes[c.name] = 0);
@@ -789,7 +960,7 @@
     }
 
     async function handleNightPhase() {
-        if(gameState.isSoundOn) { sounds.dayLoop.stop(); sounds.nightLoop.start(); Tone.Transport.start(); }
+        if(gameState.isSoundOn) playMusicLoop('night');
         logEvent(await getNarratorText(`Night ${gameState.day} is falling. The village holds its breath.`));
         
         gameState.nightTarget = null;
@@ -924,7 +1095,7 @@
     }
 
     async function handleDayDiscussion() {
-        if(gameState.isSoundOn) { sounds.nightLoop.stop(); sounds.dayLoop.start(); Tone.Transport.start(); }
+        if(gameState.isSoundOn) playMusicLoop('discussion');
 
         if (gameState.discussionRound > 3) {
             await summarizeAndGenerateImageForRound();
@@ -959,6 +1130,7 @@
     }
     
     async function handleDayVote() {
+        if(gameState.isSoundOn) playMusicLoop('vote');
         logEvent("It is time to vote for elimination.");
         const targets = getAlivePlayers();
         const votes = {};
@@ -1022,7 +1194,6 @@
         if (eliminatedPlayerName) {
             const eliminatedPlayer = getPlayerByName(eliminatedPlayerName);
             eliminatedPlayer.isAlive = false;
-            if(gameState.isSoundOn) sounds.eliminateSound();
             logEvent(`❌ The village has decided to eliminate ${eliminatedPlayer.name}! They were a ${eliminatedPlayer.role}.`);
             handlePlayerDeath(eliminatedPlayer);
         }
@@ -1033,6 +1204,7 @@
     }
 
     function handlePlayerDeath(player) {
+        if(gameState.isSoundOn) playSfx('death');
         if (player.isHuman) {
             gameState.humanPlayer.isAlive = false;
             logEvent("You have died. You are now an observer.");
@@ -1051,6 +1223,7 @@
     }
     
     function handleHumanSpeech(statement) {
+        if(gameState.isSoundOn) playMusicLoop('discussion');
         setActionPanelLoading();
         const human = getHumanPlayer();
         if (statement) {
@@ -1192,6 +1365,21 @@
         titleLoader.classList.add('hidden');
         titleContent.classList.remove('hidden');
         titleContent.classList.add('fade-in');
+
+        async function startTitleAudio() {
+            if (gameState.isSoundOn) return;
+            if (roleSelectionScreen.classList.contains('hidden')) return;
+
+            try {
+                await Tone.start();
+                initializeAudio();
+                gameState.isSoundOn = true;
+                playMusicLoop('title');
+            } catch (e) {
+                console.error("Could not start audio context:", e);
+            }
+        }
+        roleSelectionScreen.addEventListener('click', startTitleAudio, { once: true });
     }
 
     // --- AI Prompt Generation ---
