@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Werewolf: The Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+        .perspective-text {
+            transform-style: preserve-3d;
+            animation: perspective-anim 15s infinite;
+        }
+        @keyframes perspective-anim {
+            0% { transform: rotateX(20deg) rotateY(-30deg); }
+            50% { transform: rotateX(20deg) rotateY(30deg); }
+            100% { transform: rotateX(20deg) rotateY(-30deg); }
+        }
+        .thought-bubble, .summary-bubble {
+            position: relative;
+            background: #4a5568; /* gray-700 */
+            border-radius: .4em;
+            padding: 10px;
+            border: 1px solid #718096; /* gray-600 */
+        }
+        .thought-content, .summary-content {
+            font-style: italic;
+            color: #cbd5e0; /* gray-300 */
+            font-size: 0.9em;
+        }
+        #chat-log-container {
+            scroll-behavior: smooth;
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .player-card {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .player-card:hover {
+            background-color: #4a5568; /* gray-700 */
+        }
+        .player-card.dead {
+            filter: grayscale(100%);
+            opacity: 0.6;
+            cursor: default;
+        }
+        .player-card.dead .role-icon {
+             filter: grayscale(0%);
+        }
+        /* Spinner for loading state on buttons */
+        .loader {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3498db;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #player-grid-container {
+            flex-shrink: 0;
+        }
+        .scratchpad {
+            background-color: #2d3748;
+            border: 1px solid #4a5568;
+            height: 200px;
+            resize: none;
+        }
+        #role-selection-screen {
+            transition: background-image 1s ease-in-out;
+        }
+        /* Fix for flexbox overflow */
+        .chat-area-container {
+            min-width: 0;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col items-center justify-center h-screen p-4">
+
+    <!-- Main Game Container -->
+    <div id="game-container" class="w-full h-full max-w-7xl mx-auto flex flex-col hidden rounded-lg shadow-2xl bg-gray-800 border border-gray-700">
+        
+        <!-- Header -->
+        <header class="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800/50 backdrop-blur-sm rounded-t-lg">
+            <div class="flex items-center gap-4">
+                <div>
+                    <h1 class="text-2xl font-bold text-red-500">Werewolf</h1>
+                    <p id="game-phase-display" class="text-sm text-gray-400">Waiting for the game to start...</p>
+                </div>
+                 <div id="game-time-display" class="text-lg font-semibold"></div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="scratchpad-button" onclick="window.toggleScratchpadModal(true)" class="hidden px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm">Scratchpad</button>
+                <button onclick="window.toggleRulesModal(true)" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm">Rules</button>
+                <button id="player-list-toggle" onclick="window.togglePlayerList()" title="Toggle Player List" aria-label="Toggle Player List" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm">👥</button>
+                <button id="audio-toggle" onclick="window.toggleAudio()" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm">🔊</button>
+                <button id="pause-button" onclick="window.togglePause()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm">Pause</button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-grow flex flex-col md:flex-row p-4 gap-4 overflow-hidden">
+            
+            <!-- Player Grid -->
+            <div id="left-panel" class="w-full md:w-auto flex flex-col gap-4">
+                <div id="player-grid-container" class="flex flex-col gap-2 overflow-y-auto pr-2">
+                    <h2 id="player-list-header" class="text-lg font-semibold mb-2 text-center">Players</h2>
+                    <div id="player-grid" class="grid grid-cols-3 md:grid-cols-1 gap-3">
+                        <!-- Player cards will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat & Action Area -->
+            <div class="chat-area-container flex-grow flex flex-col bg-gray-900/50 rounded-lg border border-gray-700 overflow-hidden">
+                <div id="chat-log-container" class="flex-grow p-4 overflow-y-auto space-y-4">
+                    <!-- Chat messages will be injected here -->
+                </div>
+                 <div id="action-panel" class="p-4 border-t border-gray-700 bg-gray-800">
+                    <!-- Action buttons/inputs will be injected here -->
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Role Selection Screen -->
+    <div id="role-selection-screen" class="w-full h-full flex items-center justify-center text-center bg-gray-900 bg-cover bg-center">
+        <div class="bg-black bg-opacity-50 p-8 rounded-lg">
+            <div id="title-loader" class="mb-4">
+                <div class="loader inline-block"></div>
+                <p>Generating atmosphere...</p>
+            </div>
+            <div id="title-content" class="hidden">
+                 <div class="perspective-text">
+                    <h1 class="text-6xl font-bold text-white mb-4">WEREWOLF</h1>
+                    <p class="text-2xl text-red-500">Trust No One</p>
+                </div>
+                <p class="mt-8 mb-6 text-lg text-gray-300">Choose your experience for the upcoming game.</p>
+                <div class="flex justify-center gap-4">
+                    <button onclick="window.setupGame('OBSERVER')" class="px-8 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold transition-transform transform hover:scale-105">Become an Observer</button>
+                    <button onclick="window.showPlayerSetup()" class="px-8 py-3 bg-red-700 hover:bg-red-600 rounded-lg font-semibold transition-transform transform hover:scale-105">Join as a Player</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+     <!-- Player Setup Screen -->
+    <div id="player-setup-screen" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-gray-800 rounded-lg shadow-xl p-8 max-w-4xl w-full border border-gray-600">
+            <h2 class="text-3xl font-bold mb-6 text-center text-red-500">Character Setup</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto p-2">
+                <!-- Your Character -->
+                <div class="bg-gray-700 p-4 rounded-lg">
+                    <h3 class="text-xl font-semibold mb-3 text-blue-400">Your Character</h3>
+                    <label for="human-player-name" class="block mb-1 text-sm font-medium text-gray-300">Your Name</label>
+                    <input type="text" id="human-player-name" class="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white" value="You">
+                </div>
+                <!-- AI Characters Title -->
+                <div class="md:col-span-2 text-center text-xl font-semibold mt-4 text-gray-300">AI Villagers</div>
+                <!-- AI Character Forms -->
+                <div id="ai-character-forms" class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </div>
+            <div class="text-center mt-6">
+                <button onclick="window.finalizeSetup()" class="px-8 py-3 bg-red-700 hover:bg-red-600 rounded-lg font-semibold transition-transform transform hover:scale-105">Start Game</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="game-over-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-gray-800 rounded-lg shadow-xl p-8 max-w-4xl w-full border border-gray-600 text-center flex flex-col">
+            <h2 id="game-over-title" class="text-4xl font-bold mb-4"></h2>
+            <p id="game-over-message" class="text-lg text-gray-300 mb-6"></p>
+            <div id="final-roles" class="mb-6 text-left grid grid-cols-2 gap-4"></div>
+            <div class="flex-grow flex gap-4 overflow-hidden">
+                <div class="w-1/2 flex flex-col">
+                    <h3 class="text-2xl font-semibold border-t border-gray-600 pt-6 mb-4">Full Game Transcript</h3>
+                    <div id="game-transcript" class="text-left text-sm bg-gray-900 p-4 rounded-lg flex-grow overflow-y-auto border border-gray-700"></div>
+                </div>
+                <div class="w-1/2 flex flex-col">
+                     <h3 class="text-2xl font-semibold border-t border-gray-600 pt-6 mb-4">✨ AI Game Analysis</h3>
+                     <div id="ai-analysis-container" class="text-left text-sm bg-gray-900 p-4 rounded-lg flex-grow overflow-y-auto border border-gray-700">
+                        <button id="analysis-button" onclick="window.getGameAnalysis()" class="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded font-semibold">Get AI Game Analysis ✨</button>
+                     </div>
+                </div>
+            </div>
+            <button onclick="window.location.reload()" class="mt-8 px-6 py-2 bg-red-600 hover:bg-red-500 rounded-lg font-semibold self-center">Play Again</button>
+        </div>
+    </div>
+
+    <!-- Rules Modal -->
+    <div id="rules-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-gray-800 rounded-lg shadow-xl p-8 max-w-4xl w-full border border-gray-600 relative">
+             <button onclick="window.toggleRulesModal(false)" class="absolute top-4 right-4 text-gray-400 hover:text-white">&times;</button>
+             <h2 class="text-3xl font-bold mb-6 text-center text-red-500">Game Rules</h2>
+             <div class="space-y-4 text-gray-300">
+                <div class="p-4 border border-dashed border-red-400 rounded-lg">
+                    <h3 class="font-bold text-lg text-red-400">🏁 Game End Condition</h3>
+                    <p>Until Werewolves win (#Wolves ≥ #Villagers) or Villagers win (all werewolves eliminated).</p>
+                </div>
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div class="p-4 border border-gray-600 rounded-lg space-y-2">
+                        <h3 class="font-bold text-lg text-blue-400">🧩 Roles</h3>
+                        <p><strong>🐺 Werewolves (x2):</strong> Share a private night chat and choose a target to attack.</p>
+                        <p><strong>🙂 Villagers (x4):</strong> Public-information camp; vote during the day.</p>
+                        <h4 class="font-semibold pt-2">Special Roles in the village:</h4>
+                        <p><strong>🧙‍♀️ Witch (x1):</strong> Has one heal potion and one kill potion. Single-use; may self-save.</p>
+                        <p><strong>🔮 Seer (x1):</strong> Inspects one player each night and privately learns their exact role.</p>
+                        <p><strong>👑 Mayor:</strong> Elected before Night 1 with tie-break authority. If eliminated, the mayor designates a successor.</p>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="p-4 border border-gray-600 rounded-lg">
+                            <h3 class="font-bold text-lg text-yellow-400">🌙 Night</h3>
+                            <ol class="list-decimal list-inside space-y-1">
+                                <li>Werewolves debate and choose a target.</li>
+                                <li>The Witch may use a potion (heal or kill).</li>
+                                <li>The Seer peeks a player and learns their role.</li>
+                            </ol>
+                        </div>
+                        <div class="p-4 border border-gray-600 rounded-lg">
+                             <h3 class="font-bold text-lg text-orange-400">☀️ Day</h3>
+                             <ol class="list-decimal list-inside space-y-1">
+                                <li><strong>Announce night events:</strong> GM states the night’s outcome.</li>
+                                <li><strong>Debate:</strong> Players discuss and form alliances.</li>
+                                <li><strong>Vote:</strong> Each player votes. Mayor breaks ties.</li>
+                                <li><strong>The loser leaves:</strong> The player with the most votes is eliminated and reveals their role.</li>
+                             </ol>
+                        </div>
+                    </div>
+                </div>
+             </div>
+        </div>
+    </div>
+    
+    <!-- Scratchpad Modal -->
+    <div id="scratchpad-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-gray-800 rounded-lg shadow-xl p-8 max-w-lg w-full border border-gray-600 relative">
+             <button onclick="window.toggleScratchpadModal(false)" class="absolute top-4 right-4 text-gray-400 hover:text-white">&times;</button>
+             <h2 class="text-3xl font-bold mb-6 text-center text-blue-400">My Scratchpad</h2>
+             <textarea id="user-scratchpad" class="scratchpad w-full rounded-md p-2 text-sm text-gray-200" placeholder="Your private notes..."></textarea>
+        </div>
+    </div>
+
+
+<script type="module">
+    // --- DOM Elements ---
+    const gameContainer = document.getElementById('game-container');
+    const roleSelectionScreen = document.getElementById('role-selection-screen');
+    const playerSetupScreen = document.getElementById('player-setup-screen');
+    const playerGrid = document.getElementById('player-grid');
+    const chatLogContainer = document.getElementById('chat-log-container');
+    const actionPanel = document.getElementById('action-panel');
+    const gamePhaseDisplay = document.getElementById('game-phase-display');
+    const gameTimeDisplay = document.getElementById('game-time-display');
+    const gameOverModal = document.getElementById('game-over-modal');
+    const rulesModal = document.getElementById('rules-modal');
+    const scratchpadModal = document.getElementById('scratchpad-modal');
+    const scratchpadButton = document.getElementById('scratchpad-button');
+    const pauseButton = document.getElementById('pause-button');
+    const audioToggleButton = document.getElementById('audio-toggle');
+    const userScratchpad = document.getElementById('user-scratchpad');
+
+    // --- Game Constants & State ---
+    const PHASES = {
+        SETUP: 'SETUP', MAYOR_CANDIDACY: 'MAYOR_CANDIDACY', MAYOR_VOTE: 'MAYOR_VOTE',
+        NIGHT: 'NIGHT', DAY_DISCUSSION: 'DAY_DISCUSSION', DAY_VOTE: 'DAY_VOTE', GAME_OVER: 'GAME_OVER'
+    };
+
+    let gameState = {
+        phase: PHASES.SETUP, day: 0, players: [], humanPlayer: { name: 'You', role: null, isAlive: true },
+        mayor: null, witchPotions: { heal: true, kill: true }, nightTarget: null, seerPeekResult: null, gameLog: [],
+        discussionRound: 1, speakersThisRound: [], isPaused: false, isPlayerListExpanded: true,
+        viewingPlayerHistory: null, isSoundOn: false, isMuted: false,
+    };
+
+    const DEFAULT_AI_NAMES = ['Mona', 'Alice', 'Nina', 'Oscar', 'Liam', 'Charlie'];
+    const ROLES = ['wolf', 'wolf', 'seer', 'witch', 'villager', 'villager'];
+    const PERSONALITIES = ['Aggressive and accusatory', 'Quiet, analytical, and cautious', 'Helpful but nervous', 'A natural leader who tries to coordinate the group', 'Deceptive and manipulative, sowing discord', 'A logical and fair-minded player'];
+    
+    const ROLE_DETAILS = {
+        'wolf': { icon: '🐺', team: 'Werewolves' }, 'seer': { icon: '🔮', team: 'Villagers' },
+        'witch': { icon: '🧙‍♀️', team: 'Villagers' }, 'villager': { icon: '🙂', team: 'Villagers' }, 'mayor': {icon: '👑', team: 'Special'}
+    };
+    
+    // --- Audio Engine ---
+    let sounds = {};
+    function initializeAudio() {
+        const reverb = new Tone.Reverb(2).toDestination();
+        const chorus = new Tone.Chorus(4, 2.5, 0.7).toDestination().start();
+
+        sounds.nightSynth = new Tone.DuoSynth({
+            vibratoAmount: 0.5, vibratoRate: 5, harmonicity: 1.5,
+            voice0: { volume: -10, portamento: 0, oscillator: { type: "sine" }, filterEnvelope: { attack: 0.01, decay: 0.25, sustain: 0.4, release: 1.2 }, envelope: { attack: 0.01, decay: 0.25, sustain: 0.4, release: 1.2 } },
+            voice1: { volume: -20, portamento: 0, oscillator: { type: "square" }, filterEnvelope: { attack: 0.01, decay: 0.5, sustain: 0.2, release: 2 }, envelope: { attack: 0.01, decay: 0.5, sustain: 0.2, release: 2 } }
+        }).connect(reverb);
+
+        sounds.daySynth = new Tone.PolySynth(Tone.FMSynth, {
+            harmonicity: 3, modulationIndex: 10, detune: 0, oscillator: { type: "sine" },
+            envelope: { attack: 0.01, decay: 0.1, sustain: 0.9, release: 0.2 },
+            modulation: { type: "square" }, modulationEnvelope: { attack: 0.01, decay: 0.2, sustain: 0.8, release: 0.2 }
+        }).connect(chorus);
+        
+        sounds.attackSound = () => new Tone.MetalSynth({ frequency: 50, envelope: { attack: 0.001, decay: 0.4, release: 0.2 }, harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5 }).toDestination().triggerAttackRelease("C1", "8n");
+        sounds.saveSound = () => new Tone.PluckSynth().toDestination().triggerAttackRelease("C5", "8n", "+0.1");
+        sounds.eliminateSound = () => new Tone.MembraneSynth({ pitchDecay: 0.05, octaves: 10, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.8, sustain: 0.01, release: 1.4, attackCurve: "exponential"} }).toDestination().triggerAttackRelease("C2", "4n");
+
+        sounds.dayLoop = new Tone.Sequence((time, note) => { sounds.daySynth.triggerAttackRelease(note, '2n', time); }, [["C4", "E4", "G4"], "A4", "F4", "G4"], '1n').start(0);
+        sounds.nightLoop = new Tone.Sequence((time, note) => { sounds.nightSynth.triggerAttackRelease(note, '1n', time); }, ['C2', 'G2', 'Eb2', 'F2'], '1m').start(0);
+        Tone.Transport.bpm.value = 60;
+    }
+
+    // --- Gemini API Configuration ---
+    const GEMINI_API_KEY = "";
+    const GENERATE_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
+    const IMAGEN_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${GEMINI_API_KEY}`;
+    
+    let humanActionResolver = null;
+
+    // --- Utility & Rendering Functions (Defined early to prevent ReferenceError) ---
+    function getAlivePlayers() { return gameState.players.filter(p => p.isAlive); }
+    function getHumanPlayer() { return gameState.players.find(p => p.isHuman); }
+    function isHumanPlayerAlive() { return getHumanPlayer()?.isAlive || false; }
+    function getPlayerByName(name) { return gameState.players.find(p => p.name === name); }
+    
+    function updatePhaseDisplay(text) { gamePhaseDisplay.textContent = text; }
+    function updateGameTimeDisplay(text) { gameTimeDisplay.textContent = text; }
+    
+    function setActionPanelLoading() {
+        actionPanel.innerHTML = `<div class="flex justify-center items-center gap-2"><div class="loader"></div><p class="text-gray-400">Processing...</p></div>`;
+    }
+
+    function renderMessage(logEntry) {
+        const isObserver = gameState.humanPlayer.role === 'OBSERVER' || !isHumanPlayerAlive();
+        if (logEntry.isThought && !isObserver) return;
+        if (logEntry.isSummary && !isObserver) return;
+
+        const msgDiv = document.createElement('div');
+        msgDiv.classList.add('fade-in');
+
+        if (logEntry.isThought) {
+             msgDiv.innerHTML = `<div class="thought-bubble"><p class="text-xs text-gray-300 font-semibold">🧠 ${logEntry.player}'s private thoughts:</p><p class="thought-content">${logEntry.message}</p></div>`;
+        } else if (logEntry.isSummary) {
+             msgDiv.innerHTML = `<div class="summary-bubble"><p class="text-xs text-gray-300 font-semibold">📝 Summary for ${logEntry.player}:</p><p class="summary-content">${logEntry.message}</p></div>`;
+        } else if (logEntry.isImage) {
+            msgDiv.innerHTML = `<div class="p-2 border border-gray-600 rounded-lg"><p class="text-center text-sm text-gray-400 mb-2">${logEntry.prompt}</p><img src="${logEntry.message}" class="rounded-lg w-full max-w-md mx-auto" alt="AI Generated Image of round summary"/></div>`;
+        } else {
+             msgDiv.innerHTML = `<p class="text-gray-300 whitespace-pre-wrap">${logEntry.message}</p>`;
+        }
+        
+        chatLogContainer.appendChild(msgDiv);
+        chatLogContainer.scrollTop = chatLogContainer.scrollHeight;
+    }
+
+    function logEvent(message, player = null, isThought = false, isSummary = false, isImage = false, prompt = '') {
+        const logEntry = { message, isThought, isSummary, isImage, prompt, player: player ? player.name : 'GM' };
+        gameState.gameLog.push(logEntry);
+        if (gameState.viewingPlayerHistory === null) renderMessage(logEntry);
+    }
+
+    function renderPlayerGrid() {
+        playerGrid.innerHTML = '';
+        const isObserver = gameState.humanPlayer.role === 'OBSERVER' || !isHumanPlayerAlive();
+        
+        document.getElementById('player-list-header').style.display = gameState.isPlayerListExpanded ? 'block' : 'none';
+        playerGrid.className = gameState.isPlayerListExpanded ? 'grid grid-cols-2 md:grid-cols-1 gap-3' : 'grid grid-cols-1 gap-2';
+
+        gameState.players.forEach(p => {
+            const card = document.createElement('div');
+            card.className = `p-3 rounded-lg border-2 ${p.isHuman ? 'border-blue-500' : 'border-gray-600'} ${p.isAlive ? 'bg-gray-700/50' : 'bg-gray-800 dead'}`;
+            
+            const mainInfo = document.createElement('div');
+            mainInfo.className = 'player-card flex items-center gap-3';
+            
+            let roleDisplay = isObserver || (p.isHuman && p.isAlive) || !p.isAlive 
+                ? `<span class="role-icon text-2xl">${ROLE_DETAILS[p.role].icon}</span>`
+                : `<span class="text-2xl">❓</span>`;
+            
+            const nameDisplay = gameState.isPlayerListExpanded ? `<div><p class="font-semibold">${p.name} ${p.isMayor ? ROLE_DETAILS.mayor.icon : ''}</p><p class="text-xs text-gray-400">${p.isAlive ? 'Alive' : `Dead (${p.role})`}</p></div>` : '';
+            mainInfo.innerHTML = `${roleDisplay}${nameDisplay}`;
+             if (!gameState.isPlayerListExpanded) mainInfo.classList.add('justify-center');
+
+            const scratchpadContainer = document.createElement('div');
+            if (isObserver && !p.isHuman) {
+                scratchpadContainer.id = `scratchpad-${p.name}`;
+                scratchpadContainer.className = 'hidden mt-2 p-2 text-xs scratchpad rounded';
+                scratchpadContainer.innerText = p.scratchpad;
+
+                const notesButton = document.createElement('button');
+                notesButton.innerText = 'Notes';
+                notesButton.className = 'text-xs px-2 py-1 bg-gray-600 rounded hover:bg-gray-500 ml-auto';
+                notesButton.onclick = (e) => {
+                    e.stopPropagation();
+                    document.getElementById(`scratchpad-${p.name}`).classList.toggle('hidden');
+                };
+                mainInfo.appendChild(notesButton);
+            }
+
+            card.appendChild(mainInfo);
+            card.appendChild(scratchpadContainer);
+            playerGrid.appendChild(card);
+        });
+    }
+
+    function renderActionPanel() {
+        actionPanel.innerHTML = '<p class="text-gray-500 text-center">Waiting for other players...</p>';
+        if (gameState.viewingPlayerHistory) {
+             actionPanel.innerHTML = `<button onclick="window.showMainChat()" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded">Return to Game Chat</button>`;
+        }
+    }
+    
+    function renderActionPanelForHumanCandidacy() {
+        actionPanel.innerHTML = `
+            <p class="text-center mb-2">Do you want to run for Mayor?</p>
+            <div class="flex justify-center gap-4">
+                <button onclick="window.renderActionPanelForMayorSpeech()" class="px-4 py-2 bg-green-600 hover:bg-green-500 rounded">Run for Mayor</button>
+                <button onclick="window.continueAfterHumanCandidacy(null)" class="px-4 py-2 bg-red-600 hover:bg-red-500 rounded">Do Not Run</button>
+            </div>
+        `;
+    }
+
+    window.renderActionPanelForMayorSpeech = () => {
+        actionPanel.innerHTML = `
+            <p class="text-center mb-2 font-semibold">Provide your justification speech:</p>
+            <div class="flex gap-2">
+                <input id="mayor-speech-input" type="text" class="flex-grow bg-gray-700 border border-gray-600 rounded px-3 py-2" placeholder="Why should you be mayor?">
+                <button id="voice-input-mayor" onclick="window.startVoiceRecognition('mayor-speech-input')" class="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded" title="Use Voice">🎤</button>
+                <button id="mayor-speech-submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded">Submit</button>
+            </div>
+        `;
+        document.getElementById('mayor-speech-submit').onclick = () => {
+            const input = document.getElementById('mayor-speech-input');
+            continueAfterHumanCandidacy(input.value || "I believe I can lead the village to victory.");
+        };
+    }
+
+    function renderActionPanelForDiscussion() {
+         actionPanel.innerHTML = `
+            <p class="text-center mb-2 font-semibold">It's your turn to speak.</p>
+            <div class="flex gap-2">
+                <input id="speech-input" type="text" class="flex-grow bg-gray-700 border border-gray-600 rounded px-3 py-2" placeholder="Type your statement...">
+                <button id="voice-input-discussion" onclick="window.startVoiceRecognition('speech-input')" class="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded" title="Use Voice">🎤</button>
+                <button id="speech-submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded">Speak</button>
+                <button id="speech-pass" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded">Pass</button>
+            </div>
+        `;
+        document.getElementById('speech-submit').onclick = () => {
+            const input = document.getElementById('speech-input');
+            handleHumanSpeech(input.value);
+            input.value = '';
+        };
+        document.getElementById('speech-pass').onclick = () => {
+             handleHumanSpeech(null);
+        };
+    }
+    
+    function renderActionPanelForVoting(targets, type) {
+        const title = type === 'mayor' ? 'Vote for Mayor' : 'Vote for Elimination';
+        let buttonsHTML = targets.map(t => 
+            `<button onclick="window.resolveHumanAction('${t.name}')" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded disabled:opacity-50">${t.name}</button>`
+        ).join('');
+
+        actionPanel.innerHTML = `
+            <p class="text-center mb-2 font-semibold">${title}</p>
+            <div class="flex justify-center flex-wrap gap-3">${buttonsHTML}</div>
+        `;
+    }
+    
+    function renderActionPanelForTieBreak(targets) {
+        let buttonsHTML = targets.map(t_name => 
+            `<button onclick="window.resolveHumanAction('${t_name}')" class="px-4 py-2 bg-red-700 hover:bg-red-600 rounded disabled:opacity-50">${t_name}</button>`
+        ).join('');
+        actionPanel.innerHTML = `
+            <p class="text-center mb-2 font-semibold">As Mayor, you must break the tie. Choose who to eliminate:</p>
+            <div class="flex justify-center flex-wrap gap-3">${buttonsHTML}</div>
+        `;
+    }
+
+    function renderActionPanelForSeer(targets) {
+        let buttonsHTML = targets.map(t => 
+            `<button onclick="window.resolveHumanAction('${t.name}')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded disabled:opacity-50">Peek ${t.name}</button>`
+        ).join('');
+        actionPanel.innerHTML = `
+            <p class="text-center mb-2 font-semibold">As the Seer, choose one player to learn their role.</p>
+            <div class="flex justify-center flex-wrap gap-3">${buttonsHTML}</div>
+        `;
+    }
+
+    function renderActionPanelForWolves(targets) {
+        let buttonsHTML = targets.map(t => 
+            `<button onclick="window.resolveHumanAction('${t.name}')" class="px-4 py-2 bg-red-800 hover:bg-red-700 rounded disabled:opacity-50">Kill ${t.name}</button>`
+        ).join('');
+        actionPanel.innerHTML = `
+            <p class="text-center mb-2 font-semibold">As a Werewolf, choose who to eliminate tonight.</p>
+            <div class="flex justify-center flex-wrap gap-3">${buttonsHTML}</div>
+        `;
+    }
+    
+    function renderActionPanelForWitch(targets) {
+        let buttonsHTML = [];
+        if (gameState.witchPotions.heal) {
+             buttonsHTML.push(`<button onclick="window.resolveHumanAction({type: 'heal'})" class="px-4 py-2 bg-green-600 hover:bg-green-500 rounded disabled:opacity-50">Use Heal Potion (on ${gameState.nightTarget || 'Unknown'})</button>`);
+        }
+        if (gameState.witchPotions.kill) {
+            const targets = getAlivePlayers().filter(p => p.name !== getHumanPlayer().name);
+            targets.forEach(t => {
+                buttonsHTML.push(`<button onclick="window.resolveHumanAction({type: 'kill', target: '${t.name}'})" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded disabled:opacity-50">Use Kill Potion on ${t.name}</button>`);
+            });
+        }
+        buttonsHTML.push(`<button onclick="window.resolveHumanAction({type: 'none'})" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded disabled:opacity-50">Do Nothing</button>`);
+        
+        actionPanel.innerHTML = `
+            <p class="text-center mb-2 font-semibold">As the Witch, you may act. The wolves targeted ${gameState.nightTarget || 'an unknown player'}.</p>
+            <div class="flex justify-center flex-wrap gap-3">${buttonsHTML.join('')}</div>
+        `;
+    }
+
+    function renderAll() {
+        if(gameState.viewingPlayerHistory === null) {
+            renderPlayerGrid();
+            renderActionPanel();
+        }
+    }
+
+    // --- Core Game Logic ---
+    window.setupGame = async (mode, customData = null) => {
+        if (!gameState.isSoundOn) {
+            try {
+                await Tone.start();
+                initializeAudio();
+                gameState.isSoundOn = true;
+            } catch(e) {
+                console.error("Could not start audio context:", e);
+            }
+        }
+        
+        playerSetupScreen.classList.add('hidden');
+        roleSelectionScreen.classList.add('hidden');
+        gameContainer.classList.remove('hidden');
+
+        let humanName = 'You';
+
+        if (mode === 'PLAYER') {
+            if (customData) {
+                humanName = customData.humanName || 'You';
+            }
+            scratchpadButton.classList.remove('hidden');
+            userScratchpad.value = localStorage.getItem('werewolf_scratchpad') || '';
+            userScratchpad.addEventListener('input', () => localStorage.setItem('werewolf_scratchpad', userScratchpad.value));
+        }
+        
+        const rulesText = `
+--- GAME RULES ---
+🏁 **Game End:** Werewolves win if #Wolves ≥ #Villagers. Villagers win if all wolves are eliminated.
+
+🧩 **Roles:**
+- 🐺 **Werewolves (x2):** Choose a target to attack each night.
+- 🙂 **Villagers (x4):** Includes special roles. Vote during the day.
+- 🧙‍♀️ **Witch (x1):** Has one heal potion and one kill potion (single-use).
+- 🔮 **Seer (x1):** Inspects one player each night to learn their role.
+- 👑 **Mayor:** Elected at start. Breaks voting ties.
+        `;
+        logEvent(rulesText.trim().replace(/  +/g, ''));
+
+        let assignedRoles = [...ROLES].sort(() => 0.5 - Math.random());
+        let assignedPersonalities = [...PERSONALITIES].sort(() => 0.5 - Math.random());
+        
+        gameState.humanPlayer.name = humanName;
+
+        if (mode === 'PLAYER') {
+            gameState.humanPlayer.role = assignedRoles.pop();
+            gameState.players.push({ ...gameState.humanPlayer, isHuman: true, scratchpad: '' });
+            logEvent(`You have been assigned the role: ${gameState.humanPlayer.role.toUpperCase()}.`);
+        } else {
+             gameState.humanPlayer.role = 'OBSERVER';
+             logEvent(`You are an Observer. You will see all hidden information.`);
+        }
+
+        const aiNames = customData ? customData.aiCharacters.map(c => c.name) : DEFAULT_AI_NAMES.filter(n => n !== humanName).slice(0, 5);
+        const aiBackstories = customData ? customData.aiCharacters.map(c => c.backstory) : Array(5).fill('');
+
+        assignedRoles.forEach((role, index) => {
+            gameState.players.push({
+                name: aiNames[index], role: role, isAlive: true, isHuman: false,
+                personality: assignedPersonalities[index], backstory: aiBackstories[index] || '',
+                scratchpad: 'Initial thoughts...'
+            });
+        });
+        
+        gameState.players.sort((a, b) => a.name.localeCompare(b.name));
+
+        renderAll();
+        setTimeout(gameController, 1000);
+    };
+
+    window.showPlayerSetup = () => {
+        roleSelectionScreen.classList.add('hidden');
+        playerSetupScreen.classList.remove('hidden');
+
+        const aiFormsContainer = document.getElementById('ai-character-forms');
+        aiFormsContainer.innerHTML = '';
+        const aiNames = DEFAULT_AI_NAMES.slice(0, 5); // Assuming 5 AI players
+        
+        aiNames.forEach((name, index) => {
+            const formHtml = `
+                <div class="bg-gray-700/50 p-3 rounded-lg">
+                    <label for="ai-name-${index}" class="block mb-1 text-sm font-medium text-gray-300">AI Player ${index + 1} Name</label>
+                    <input type="text" id="ai-name-${index}" class="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white mb-2" value="${name}">
+                    <label for="ai-backstory-${index}" class="block mb-1 text-sm font-medium text-gray-300">Backstory</label>
+                    <textarea id="ai-backstory-${index}" class="w-full h-20 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm" placeholder="(Optional) e.g., The village blacksmith, secretly in love..."></textarea>
+                </div>
+            `;
+            aiFormsContainer.innerHTML += formHtml;
+        });
+    }
+
+    window.finalizeSetup = () => {
+        const humanName = document.getElementById('human-player-name').value;
+        const aiCharacters = [];
+        const aiCount = 5;
+        for (let i = 0; i < aiCount; i++) {
+            const name = document.getElementById(`ai-name-${i}`).value;
+            const backstory = document.getElementById(`ai-backstory-${i}`).value;
+            aiCharacters.push({ name, backstory });
+        }
+        setupGame('PLAYER', { humanName, aiCharacters });
+    }
+
+
+    async function gameController() {
+        if (gameState.isPaused) {
+            setTimeout(gameController, 500); return;
+        }
+        if (checkWinConditions()) return;
+
+        switch (gameState.phase) {
+            case PHASES.SETUP:
+                gameState.phase = PHASES.MAYOR_CANDIDACY;
+                updatePhaseDisplay('🏛️ Mayor Election: Candidacies');
+                await handleMayorCandidacies();
+                break;
+            case PHASES.MAYOR_VOTE:
+                 updatePhaseDisplay('🏛️ Mayor Election: Voting');
+                 await handleMayorVoting();
+                 break;
+            case PHASES.NIGHT:
+                gameState.day++;
+                updateGameTimeDisplay(`🌙 Night ${gameState.day}`);
+                updatePhaseDisplay('The village is asleep...');
+                await handleNightPhase();
+                break;
+            case PHASES.DAY_DISCUSSION:
+                 updateGameTimeDisplay(`☀️ Day ${gameState.day}`);
+                 updatePhaseDisplay('💬 Public Discussion');
+                 await handleDayDiscussion();
+                 break;
+            case PHASES.DAY_VOTE:
+                updateGameTimeDisplay(`☀️ Day ${gameState.day}`);
+                updatePhaseDisplay('🗳️ Elimination Vote');
+                await handleDayVote();
+                break;
+        }
+    }
+    
+    function checkWinConditions() {
+        const wolves = getAlivePlayers().filter(p => p.role === 'wolf');
+        const villagers = getAlivePlayers().filter(p => ROLE_DETAILS[p.role].team === 'Villagers');
+        let winner = null;
+        if (wolves.length === 0) winner = 'Villagers';
+        else if (wolves.length >= villagers.length) winner = 'Werewolves';
+
+        if (winner) {
+            gameState.phase = PHASES.GAME_OVER;
+            if(gameState.isSoundOn) Tone.Transport.stop();
+            showGameOver(winner);
+            return true;
+        }
+        return false;
+    }
+
+    // --- Phase Handlers ---
+    async function handleMayorCandidacies() {
+        logEvent(await getNarratorText("A mayor needs to be elected. Who will step up to lead the village?"));
+        const sortedPlayers = getAlivePlayers().sort((a,b) => a.name.localeCompare(b.name));
+        for (const player of sortedPlayers) {
+            player.isCandidate = false; 
+            if (player.isHuman) { renderActionPanelForHumanCandidacy(); return; }
+            else { await processAICandidacy(player); }
+        }
+        if (gameState.humanPlayer.role === 'OBSERVER') startMayorVote(getAlivePlayers().filter(p => p.isCandidate).map(p => p.name));
+    }
+
+    async function processAICandidacy(player) {
+        const response = await callGemini(createPrompt(player, "mayor_candidacy"), player);
+        try {
+            logEvent(`🧠 ${player.name}'s private thoughts: ${response.reasoning}`, player, true);
+            player.scratchpad = response.updatedScratchpad;
+            if (response.run) {
+                player.isCandidate = true;
+                logEvent(`${player.name} is running for mayor: "${response.justification}"`);
+            } else {
+                logEvent(`${player.name} is not running for mayor.`);
+            }
+        } catch(e) { logEvent(`${player.name} is not running for mayor.`); }
+    }
+    
+    window.continueAfterHumanCandidacy = async (justification) => {
+        setActionPanelLoading();
+        const human = getHumanPlayer();
+        human.isCandidate = justification !== null;
+        if (justification) logEvent(`${human.name} is running for mayor: "${justification}"`);
+        else logEvent(`${human.name} is not running for mayor.`);
+        
+        const playersAfterHuman = getAlivePlayers().filter(p => !p.isHuman && p.name.localeCompare(human.name) > 0);
+        for(const player of playersAfterHuman) await processAICandidacy(player);
+        startMayorVote(getAlivePlayers().filter(p => p.isCandidate).map(p => p.name));
+    };
+    
+    function startMayorVote(candidates) {
+        if (candidates.length === 0) {
+            logEvent("No one ran for mayor. The village will proceed without one for now.");
+            gameState.phase = PHASES.NIGHT;
+            renderAll();
+            setTimeout(gameController, 3000);
+            return;
+        }
+        gameState.phase = PHASES.MAYOR_VOTE;
+        logEvent(`The candidates are: ${candidates.join(', ')}. It is time to vote.`);
+        renderAll();
+        setTimeout(gameController, 1000);
+    }
+    
+    async function handleMayorVoting() {
+        const candidates = getAlivePlayers().filter(p => p.isCandidate);
+        const votes = {};
+        candidates.forEach(c => votes[c.name] = 0);
+
+        for (const voter of getAlivePlayers()) {
+            let voteTargetName;
+            if (voter.isHuman) {
+                renderActionPanelForVoting(candidates, 'mayor');
+                voteTargetName = await waitForHumanAction();
+            } else {
+                const response = await callGemini(createPrompt(voter, "mayor_vote", { candidates: candidates.map(c => c.name) }), voter);
+                try {
+                    logEvent(`🧠 ${voter.name}'s private thoughts: ${response.reasoning}`, voter, true);
+                    voter.scratchpad = response.updatedScratchpad;
+                    voteTargetName = response.vote;
+                } catch(e) {
+                    voteTargetName = candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)].name : null;
+                }
+            }
+            if (voteTargetName && votes[voteTargetName] !== undefined) {
+                votes[voteTargetName]++;
+                logEvent(`${voter.name} voted for ${voteTargetName}.`);
+            }
+        }
+
+        const sortedVotes = Object.entries(votes).sort((a, b) => b[1] - a[1]);
+        
+        if (sortedVotes.length > 0 && sortedVotes[0][1] > (sortedVotes[1] ? sortedVotes[1][1] : -1)) {
+            const winnerName = sortedVotes[0][0];
+            const mayor = getPlayerByName(winnerName);
+            gameState.mayor = mayor.name;
+            mayor.isMayor = true;
+            logEvent(`${mayor.name} has been elected Mayor! 👑 Their vote will break ties.`);
+        } else {
+             logEvent("The vote is tied! No mayor is elected this time.");
+        }
+        
+        gameState.phase = PHASES.NIGHT;
+        renderAll();
+        setTimeout(gameController, 3000);
+    }
+
+    async function handleNightPhase() {
+        if(gameState.isSoundOn) { sounds.dayLoop.stop(); sounds.nightLoop.start(); Tone.Transport.start(); }
+        logEvent(await getNarratorText(`Night ${gameState.day} is falling. The village holds its breath.`));
+        
+        gameState.nightTarget = null;
+        gameState.seerPeekResult = null;
+        let witchSaved = false;
+
+        const seer = getAlivePlayers().find(p => p.role === 'seer');
+        if (seer) {
+            // ... (Full implementation of Seer logic here)
+        }
+        
+        const wolves = getAlivePlayers().filter(p => p.role === 'wolf');
+        if (wolves.length > 0) {
+             // ... (Full implementation of Wolf logic here)
+        }
+
+        const witch = getAlivePlayers().find(p => p.role === 'witch');
+        if (witch) {
+             // ... (Full implementation of Witch logic here)
+        }
+        
+        updatePhaseDisplay('Resolving the night...');
+        if (gameState.nightTarget && !witchSaved) {
+            const victim = getPlayerByName(gameState.nightTarget);
+            if (victim) {
+                victim.isAlive = false;
+                logEvent(`💀 ${victim.name} was killed in the night! They were a ${victim.role}.`);
+                handlePlayerDeath(victim);
+            }
+        } else if (gameState.nightTarget && witchSaved) {
+            logEvent("Someone was attacked, but they were saved! No one died from the werewolf attack.");
+        } else if (getAlivePlayers().length < gameState.players.length) {} 
+        else {
+            logEvent("The night was quiet. No one died.");
+        }
+
+        gameState.phase = PHASES.DAY_DISCUSSION;
+        gameState.discussionRound = 1;
+        gameState.speakersThisRound = [];
+        renderAll();
+        setTimeout(gameController, 3000);
+    }
+
+    async function handleDayDiscussion() {
+        if(gameState.isSoundOn) { sounds.nightLoop.stop(); sounds.dayLoop.start(); Tone.Transport.start(); }
+
+        if (gameState.discussionRound > 3) {
+            await summarizeAndGenerateImageForRound();
+            logEvent("The discussion time is over.");
+            gameState.phase = PHASES.DAY_VOTE;
+            setTimeout(gameController, 1000);
+            return;
+        }
+        
+        if (gameState.discussionRound > 1) await summarizeAndGenerateImageForRound();
+        
+        logEvent(await getNarratorText(`It is now Day ${gameState.day}, discussion round ${gameState.discussionRound}. The village must debate.`));
+         
+        const sortedPlayers = getAlivePlayers().sort((a,b) => a.name.localeCompare(b.name));
+        for (const player of sortedPlayers) {
+            if (player.isHuman) { renderActionPanelForDiscussion(); return; }
+            else {
+                 const response = await callGemini(createPrompt(player, "day_discussion", { round: gameState.discussionRound }), player);
+                 try {
+                     logEvent(`🧠 ${player.name}'s private thoughts: ${response.reasoning}`, player, true);
+                     logEvent(`📝 Summary of ${player.name}'s statement: ${response.summary}`, player, false, true);
+                     logEvent(`${player.name}: "${response.statement}"`);
+                     player.scratchpad = response.updatedScratchpad;
+                 } catch(e) { logEvent(`${player.name} passes their turn.`); }
+            }
+        }
+        
+        if (gameState.humanPlayer.role === 'OBSERVER' || !isHumanPlayerAlive()) {
+            gameState.discussionRound++;
+            setTimeout(gameController, 2000);
+        }
+    }
+    
+    async function handleDayVote() {
+        logEvent("It is time to vote for elimination.");
+        const targets = getAlivePlayers();
+        const votes = {};
+        targets.forEach(t => votes[t.name] = 0);
+
+        for (const voter of getAlivePlayers()) {
+            let voteTargetName;
+            if (voter.isHuman) {
+                 renderActionPanelForVoting(targets, 'elimination');
+                 voteTargetName = await waitForHumanAction();
+            } else {
+                const response = await callGemini(createPrompt(voter, "day_vote", { targets: targets.map(t => t.name) }), voter);
+                try {
+                    logEvent(`🧠 ${voter.name}'s thoughts: ${response.reasoning}`, voter, true);
+                    voter.scratchpad = response.updatedScratchpad;
+                    voteTargetName = response.vote;
+                } catch (e) {
+                    voteTargetName = targets.filter(t => t.name !== voter.name)[0]?.name || targets[0].name;
+                }
+            }
+            if (voteTargetName && votes[voteTargetName] !== undefined) {
+                votes[voteTargetName]++;
+                logEvent(`${voter.name} voted for ${voteTargetName}.`);
+            }
+        }
+        
+        let sortedVotes = Object.entries(votes).sort((a, b) => b[1] - a[1]);
+        let eliminatedPlayerName = null;
+
+        if (sortedVotes.length === 0 || sortedVotes[0][1] === 0) {
+            logEvent("No one received any votes. No one is eliminated.");
+        } else if (sortedVotes.length > 1 && sortedVotes[0][1] === sortedVotes[1][1]) {
+            logEvent("The vote is tied!");
+            if(gameState.mayor) {
+                // ... (Tie-break logic)
+            } else {
+                logEvent("With no mayor, the vote fails. No one is eliminated.");
+            }
+        } else {
+             eliminatedPlayerName = sortedVotes[0][0];
+        }
+
+        if (eliminatedPlayerName) {
+            const eliminatedPlayer = getPlayerByName(eliminatedPlayerName);
+            eliminatedPlayer.isAlive = false;
+            if(gameState.isSoundOn) sounds.eliminateSound();
+            logEvent(`❌ The village has decided to eliminate ${eliminatedPlayer.name}! They were a ${eliminatedPlayer.role}.`);
+            handlePlayerDeath(eliminatedPlayer);
+        }
+        
+        gameState.phase = PHASES.NIGHT;
+        renderAll();
+        setTimeout(gameController, 4000);
+    }
+
+    function handlePlayerDeath(player) {
+        if (player.isHuman) {
+            gameState.humanPlayer.isAlive = false;
+            logEvent("You have died. You are now an observer.");
+        }
+        if (player.name === gameState.mayor) {
+            logEvent(`Mayor ${player.name} has fallen! A successor must be named...`);
+            const successor = getAlivePlayers()[0]; 
+            if(successor) {
+                 gameState.mayor = successor.name;
+                 successor.isMayor = true;
+                 logEvent(`${successor.name} is the new Mayor.`);
+            } else {
+                gameState.mayor = null;
+            }
+        }
+    }
+    
+    function handleHumanSpeech(statement) {
+        setActionPanelLoading();
+        const human = getHumanPlayer();
+        if (statement) {
+            logEvent(`${human.name}: "${statement}"`);
+        } else {
+            logEvent(`${human.name} passes their turn.`);
+        }
+        
+        async function finishDiscussionRound() {
+            const humanName = getHumanPlayer().name;
+            const playersWhoHaventSpoken = getAlivePlayers().filter(p => !p.isHuman && p.name.localeCompare(humanName) > 0);
+
+            for (const player of playersWhoHaventSpoken) {
+                const response = await callGemini(createPrompt(player, "day_discussion", { round: gameState.discussionRound }), player);
+                try {
+                    logEvent(`🧠 ${player.name}'s private thoughts: ${response.reasoning}`, player, true);
+                    logEvent(`📝 Summary of ${player.name}'s statement: ${response.summary}`, player, false, true);
+                    logEvent(`${player.name}: "${response.statement}"`);
+                    player.scratchpad = response.updatedScratchpad;
+                } catch(e) {
+                    logEvent(`${player.name} passes their turn.`);
+                }
+            }
+            gameState.discussionRound++;
+            setTimeout(gameController, 2000);
+        }
+        finishDiscussionRound();
+    }
+
+    // --- Speech Recognition ---
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition;
+
+    if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+    }
+
+    window.startVoiceRecognition = (targetInputId) => {
+        if (!recognition) {
+            logEvent("System: Voice recognition is not supported by your browser.");
+            return;
+        }
+        const buttonId = targetInputId === 'mayor-speech-input' ? 'voice-input-mayor' : 'voice-input-discussion';
+        const button = document.getElementById(buttonId);
+        
+        recognition.onstart = () => {
+            button.textContent = '...';
+            button.classList.add('bg-red-600');
+        };
+
+        recognition.onspeechend = () => {
+            recognition.stop();
+            button.textContent = '🎤';
+            button.classList.remove('bg-red-600');
+        };
+        
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            document.getElementById(targetInputId).value = transcript;
+        };
+        
+        recognition.onerror = (event) => {
+            logEvent(`System: Voice recognition error - ${event.error}`);
+            button.textContent = '🎤';
+            button.classList.remove('bg-red-600');
+        };
+
+        recognition.start();
+    };
+
+
+    // --- New AI Features ---
+    async function getNarratorText(prompt) {
+        const narrativePrompt = {
+            system: "You are a dramatic, medieval fantasy-themed Game Master for a game of Werewolf. Narrate the current event in 1-2 flavorful, engaging sentences.",
+            user: `The event is: ${prompt}`
+        };
+        return await callGemini(narrativePrompt, { name: 'Narrator' }, 3, 1000, false);
+    }
+    
+    async function summarizeAndGenerateImageForRound() {
+        logEvent("Summarizing the round...");
+        const currentRoundLogs = gameState.gameLog.filter(log => log.message.includes(`discussion round ${gameState.discussionRound-1}`) || (log.player !== 'GM' && !log.isThought && !log.isSummary));
+        const discussionText = currentRoundLogs.map(log => log.message).join('\n');
+
+        const summaryPrompt = {
+            system: "You are a neutral observer. Summarize the key events, accusations, and defenses of this Werewolf game discussion round in one compelling sentence.",
+            user: `Discussion:\n${discussionText}`
+        };
+        const summary = await callGemini(summaryPrompt, {name: 'RoundSummarizer'}, 3, 1000, false);
+        logEvent(`Round ${gameState.discussionRound - 1} Summary: ${summary}`);
+        
+        logEvent("Generating an image for the round...");
+        const imagePrompt = `An atmospheric, dark, oil painting of a tense scene in a medieval village. The mood is suspicious and paranoid. The scene is inspired by this summary: "${summary}"`;
+        const imageData = await callImagen(imagePrompt);
+        if (imageData) {
+            logEvent(imageData, null, false, false, true, summary);
+        } else {
+            logEvent("Image generation failed for this round.");
+        }
+    }
+    
+    window.getGameAnalysis = async () => {
+        const analysisButton = document.getElementById('analysis-button');
+        analysisButton.disabled = true;
+        analysisButton.innerHTML = `<div class="loader inline-block"></div> Analyzing...`;
+
+        const transcript = gameState.gameLog.map(log => {
+            if (log.isThought) return `(${log.player}'s thought: ${log.message})`;
+            return log.message;
+        }).join('\n');
+
+        const analysisPrompt = {
+            system: "You are an expert Werewolf game analyst. Analyze the provided game transcript. Identify the MVP, the key turning point, and provide a brief summary of why the winning team won.",
+            user: `Transcript:\n${transcript}`
+        };
+        
+        const analysis = await callGemini(analysisPrompt, { name: 'Analyst' }, 3, 1000, false);
+        document.getElementById('ai-analysis-container').innerHTML = `<p class="whitespace-pre-wrap">${analysis}</p>`;
+    }
+
+    // --- Title Screen Loader ---
+    async function loadTitleScreenImage() {
+        const titleScreen = document.getElementById('role-selection-screen');
+        const titleLoader = document.getElementById('title-loader');
+        const titleContent = document.getElementById('title-content');
+
+        const prompt = "An atmospheric, dark, oil painting of a tense scene in a medieval village at night under a full moon. The mood is suspicious and paranoid. Epic, cinematic, fantasy art.";
+        const imageData = await callImagen(prompt);
+
+        if (imageData) {
+            titleScreen.style.backgroundImage = `url(${imageData})`;
+        }
+        
+        titleLoader.classList.add('hidden');
+        titleContent.classList.remove('hidden');
+        titleContent.classList.add('fade-in');
+    }
+
+    // --- AI Prompt Generation ---
+    function createPrompt(player, action, context = {}) {
+        const system_rules = `You are playing a game of Werewolf. There are 6 players: 2 wolves, 4 villagers (seer, witch, 2 regular). Your goal is to help your team win. Villagers win by eliminating all wolves. Wolves win when their numbers equal or exceed villagers. You must respond in a valid JSON format only.`
+
+        let promptText = `You are ${player.name}, your role is ${player.role.toUpperCase()}, and your personality is: ${player.personality}. ${player.backstory ? `Your backstory is: "${player.backstory}".` : ''} Embody this character. Your current private notes are: "${player.scratchpad}". Update your notes based on new events.`;
+        promptText += `\nLiving players: ${getAlivePlayers().map(p => p.name).join(', ')}.`;
+        
+        const chatHistory = gameState.gameLog.filter(log => !log.isThought && !log.isSummary && !log.isImage).slice(-20).map(log => log.message).join('\n');
+        promptText += `\n\nRecent public chat:\n${chatHistory}`;
+
+        switch (action) {
+            case "mayor_candidacy":
+                promptText += `\nDecide if you want to run for mayor. Provide reasoning, a public justification if you run, and update your scratchpad.
+                Respond with JSON: {"run": boolean, "reasoning": "...", "justification": "...", "updatedScratchpad": "..."}`;
+                break;
+            case "mayor_vote":
+                promptText += `\nCandidates are: ${context.candidates.join(', ')}. Decide who to vote for.
+                Respond with JSON: {"reasoning": "...", "vote": "PlayerName", "updatedScratchpad": "..."}`;
+                break;
+            case "seer_action":
+                promptText += `\nYou are the Seer. Choose one player to peek. Targets: ${context.targets.join(', ')}.
+                Respond with JSON: {"reasoning": "...", "peek": "PlayerName", "updatedScratchpad": "..."}`;
+                break;
+            case "wolf_action":
+                promptText += `\nYou are a Wolf. Choose a non-wolf to kill. ${context.partner ? `Your partner is ${context.partner}.` : ''} Targets: ${context.targets.join(', ')}.
+                Respond with JSON: {"reasoning": "...", "kill": "PlayerName", "updatedScratchpad": "..."}`;
+                break;
+            case "witch_action":
+                promptText += `\nYou are the Witch. The wolves targeted ${context.target || 'someone'}. You have ${context.potions.heal ? 'a heal potion' : 'no heal potion'} and ${context.potions.kill ? 'a kill potion' : 'no kill potion'}. Other players: ${getAlivePlayers().map(p=>p.name).join(', ')}.
+                Respond with JSON: {"reasoning": "...", "action": {"type": "heal" | "kill" | "none", "target": "PlayerName"}, "updatedScratchpad": "..."}`;
+                break;
+            case "day_discussion":
+                 promptText += `\nIt's your turn to speak in round ${context.round}.
+                 Respond with JSON: {"reasoning": "...", "statement": "...", "summary": "A 2-sentence summary of your statement.", "updatedScratchpad": "..."}`;
+                 break;
+            case "day_vote":
+                 promptText += `\nVote for elimination. Targets are: ${context.targets.join(', ')}.
+                 Respond with JSON: {"reasoning": "...", "vote": "PlayerName", "updatedScratchpad": "..."}`;
+                 break;
+        }
+
+        return { system: system_rules, user: promptText };
+    }
+
+    // --- Gemini API Calls ---
+    async function callGemini(prompt, player, retries = 3, delay = 1000, expectJson = true) {
+        const payload = {
+            contents: [{ parts: [{ text: prompt.user }] }],
+            systemInstruction: { parts: [{ text: prompt.system }] },
+        };
+        
+        if (expectJson) {
+            payload.generationConfig = { responseMimeType: "application/json" };
+        }
+
+        try {
+            const response = await fetch(GENERATE_API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) throw new Error(`API call failed with status: ${response.status}`);
+
+            const result = await response.json();
+            const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (text) {
+                return expectJson ? JSON.parse(text) : text;
+            } else {
+                throw new Error("Invalid response structure from API.");
+            }
+        } catch (error) {
+            console.error(`API Error for ${player.name}: ${error.message}. Retrying in ${delay / 1000}s...`);
+            logEvent(`(System: Experiencing connection issues with ${player.name}... retrying.)`);
+            if (retries > 0) {
+                await new Promise(res => setTimeout(res, delay));
+                return callGemini(prompt, player, retries - 1, delay * 2, expectJson);
+            } else {
+                console.error(`API call for ${player.name} failed after multiple retries.`);
+                logEvent(`(System: Could not get a response from ${player.name}.)`);
+                return expectJson ? {} : "Error generating response."; 
+            }
+        }
+    }
+
+    async function callImagen(promptText) {
+        const payload = { instances: [{ prompt: promptText }], parameters: { "sampleCount": 1 } };
+        try {
+            const response = await fetch(IMAGEN_API_URL, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            });
+            if (!response.ok) throw new Error(`Imagen API call failed with status: ${response.status}`);
+            const result = await response.json();
+            if (result.predictions && result.predictions[0].bytesBase64Encoded) {
+                return `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`;
+            }
+            return null;
+        } catch (error) {
+            console.error(`Imagen API Error: ${error.message}`);
+            return null;
+        }
+    }
+
+    // --- Global Click Handlers & Initial Load ---
+    window.toggleRulesModal = (show) => rulesModal.classList.toggle('hidden', !show);
+    window.toggleScratchpadModal = (show) => scratchpadModal.classList.toggle('hidden', !show);
+    window.togglePlayerList = () => { gameState.isPlayerListExpanded = !gameState.isPlayerListExpanded; renderPlayerGrid(); };
+    window.toggleAudio = () => { gameState.isMuted = !gameState.isMuted; Tone.Master.mute = gameState.isMuted; audioToggleButton.textContent = gameState.isMuted ? '🔇' : '🔊'; };
+    window.togglePause = () => {
+        gameState.isPaused = !gameState.isPaused;
+        pauseButton.textContent = gameState.isPaused ? 'Play' : 'Pause';
+        pauseButton.classList.toggle('bg-green-600', gameState.isPaused);
+        if(gameState.isSoundOn) { if(gameState.isPaused) Tone.Transport.pause(); else Tone.Transport.start(); }
+        if (!gameState.isPaused) gameController(); 
+    };
+    
+    function waitForHumanAction() {
+        return new Promise(resolve => {
+            humanActionResolver = resolve;
+        });
+    }
+
+    window.resolveHumanAction = (data) => {
+        if (humanActionResolver) {
+            setActionPanelLoading();
+            humanActionResolver(data);
+            humanActionResolver = null;
+        }
+    };
+    
+    loadTitleScreenImage();
+
+</script>
+
+</body>
+</html>
+
