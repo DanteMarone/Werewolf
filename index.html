@@ -1438,15 +1438,46 @@
     
     async function summarizeAndGenerateImageForRound() {
         logEvent("Summarizing the round...");
-        const currentRoundLogs = gameState.gameLog.filter(log => log.message.includes(`discussion round ${gameState.discussionRound-1}`) || (log.player !== 'GM' && !log.isThought && !log.isSummary));
-        const discussionText = currentRoundLogs.map(log => log.message).join('\n');
+
+        // This function is called at the start of a new round to summarize the previous one.
+        const roundToSummarize = gameState.discussionRound - 1;
+        if (roundToSummarize < 1) return; // Don't summarize before round 1
+
+        const roundStartMessageIdentifier = `discussion round ${roundToSummarize}`;
+
+        let roundStartIndex = -1;
+        for (let i = gameState.gameLog.length - 1; i >= 0; i--) {
+            if (gameState.gameLog[i].message.includes(roundStartMessageIdentifier)) {
+                roundStartIndex = i;
+                break;
+            }
+        }
+
+        if (roundStartIndex === -1) {
+            logEvent(`Could not find the start of round ${roundToSummarize} to summarize.`);
+            return;
+        }
+
+        // Get logs from the start of the round to now.
+        const logsForThisRound = gameState.gameLog.slice(roundStartIndex);
+
+        // Filter for actual discussion text (player statements).
+        const discussionText = logsForThisRound
+            .filter(log => log.player !== 'GM' && !log.isThought && !log.isSummary && !log.isImage)
+            .map(log => log.message)
+            .join('\n');
+
+        if (!discussionText.trim()) {
+            logEvent(`No discussion to summarize for round ${roundToSummarize}.`);
+            return;
+        }
 
         const summaryPrompt = {
             system: "You are a neutral observer. Summarize the key events, accusations, and defenses of this Werewolf game discussion round in one compelling sentence.",
             user: `Discussion:\n${discussionText}`
         };
         const summary = await callGemini(summaryPrompt, {name: 'RoundSummarizer'}, 3, 1000, false);
-        logEvent(`Round ${gameState.discussionRound - 1} Summary: ${summary}`);
+        logEvent(`Round ${roundToSummarize} Summary: ${summary}`);
         
         logEvent("Generating an image for the round...");
         const imagePrompt = `An atmospheric, dark, oil painting of a tense scene in a medieval village. The mood is suspicious and paranoid. The scene is inspired by this summary: "${summary}"`;
