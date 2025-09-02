@@ -591,8 +591,8 @@
              logEvent(`You are an Observer. You will see all hidden information.`);
         }
 
-        const aiNames = customData ? customData.aiCharacters.map(c => c.name) : DEFAULT_AI_NAMES.filter(n => n !== humanName).slice(0, 5);
-        const aiBackstories = customData ? customData.aiCharacters.map(c => c.backstory) : Array(5).fill('');
+        const aiNames = customData ? customData.aiCharacters.map(c => c.name) : DEFAULT_AI_NAMES.slice(0, mode === 'PLAYER' ? 5 : 6);
+        const aiBackstories = customData ? customData.aiCharacters.map(c => c.backstory) : Array(mode === 'PLAYER' ? 5 : 6).fill('');
 
         assignedRoles.forEach((role, index) => {
             gameState.players.push({
@@ -798,17 +798,107 @@
 
         const seer = getAlivePlayers().find(p => p.role === 'seer');
         if (seer) {
-            // ... (Full implementation of Seer logic here)
+            updatePhaseDisplay('🔮 The Seer is peeking...');
+            let targetName;
+            const possibleTargets = getAlivePlayers().filter(p => p.name !== seer.name);
+            if (seer.isHuman) {
+                renderActionPanelForSeer(possibleTargets);
+                targetName = await waitForHumanAction();
+            } else {
+                const response = await callGemini(createPrompt(seer, "seer_action", { targets: possibleTargets.map(p => p.name) }), seer);
+                try {
+                    logEvent(`🧠 ${seer.name}'s thoughts: ${response.reasoning}`, seer, true);
+                    seer.scratchpad = response.updatedScratchpad;
+                    targetName = response.peek;
+                } catch(e) {
+                     targetName = possibleTargets[Math.floor(Math.random() * possibleTargets.length)].name;
+                }
+            }
+            const target = getPlayerByName(targetName);
+            if (target) {
+                gameState.seerPeekResult = {seer: seer.name, target: target.name, role: target.role };
+                logEvent(`The Seer has chosen their target.`, null, false);
+                if (seer.isHuman) {
+                    logEvent(`(Your vision) You peeked at ${target.name} and discovered they are a ${target.role.toUpperCase()}.`);
+                } else if (gameState.humanPlayer.role === 'OBSERVER') {
+                    logEvent(`(Observer) The Seer (${seer.name}) peeked at ${target.name} and discovered they are a ${target.role.toUpperCase()}.`);
+                }
+            }
         }
         
         const wolves = getAlivePlayers().filter(p => p.role === 'wolf');
         if (wolves.length > 0) {
-             // ... (Full implementation of Wolf logic here)
+            updatePhaseDisplay('🐺 The Werewolves are hunting...');
+            const possibleTargets = getAlivePlayers().filter(p => p.role !== 'wolf');
+            let targetName;
+            const humanWolf = wolves.find(w => w.isHuman);
+
+            if (humanWolf) {
+                renderActionPanelForWolves(possibleTargets);
+                targetName = await waitForHumanAction();
+            } else {
+                // For AI wolves, we can just have one make the decision for the pack.
+                const actingWolf = wolves[0];
+                const prompt = createPrompt(actingWolf, "wolf_action", {
+                    partner: wolves.length > 1 ? wolves.find(w => w.name !== actingWolf.name).name : null,
+                    targets: possibleTargets.map(p => p.name)
+                });
+                const response = await callGemini(prompt, actingWolf);
+                try {
+                    logEvent(`🧠 Wolf thoughts (${actingWolf.name}): ${response.reasoning}`, actingWolf, true);
+                    actingWolf.scratchpad = response.updatedScratchpad;
+                    targetName = response.kill;
+                } catch(e) {
+                    targetName = possibleTargets.length > 0 ? possibleTargets[Math.floor(Math.random() * possibleTargets.length)].name : null;
+                }
+            }
+            gameState.nightTarget = targetName;
+            if(targetName) {
+                if(gameState.isSoundOn) sounds.attackSound();
+                logEvent(`The werewolves have chosen a target.`, null, false);
+            }
         }
 
         const witch = getAlivePlayers().find(p => p.role === 'witch');
         if (witch) {
-             // ... (Full implementation of Witch logic here)
+             updatePhaseDisplay('🧙‍♀️ The Witch is brewing...');
+             let action = { type: 'none' };
+             const possibleKillTargets = getAlivePlayers().filter(p => p.name !== witch.name);
+
+             if (witch.isHuman) {
+                renderActionPanelForWitch(possibleKillTargets);
+                action = await waitForHumanAction();
+             } else {
+                const prompt = createPrompt(witch, "witch_action", {
+                    potions: gameState.witchPotions,
+                    target: gameState.nightTarget,
+                    targets: possibleKillTargets.map(p => p.name)
+                });
+                const response = await callGemini(prompt, witch);
+                try {
+                    logEvent(`🧠 Witch thoughts (${witch.name}): ${response.reasoning}`, witch, true);
+                    witch.scratchpad = response.updatedScratchpad;
+                    action = response.action;
+                } catch(e) { /* AI does nothing */ }
+             }
+
+             if (action.type === 'heal' && gameState.witchPotions.heal && gameState.nightTarget) {
+                 witchSaved = true;
+                 if(gameState.isSoundOn) sounds.saveSound();
+                 gameState.witchPotions.heal = false;
+                 logEvent(`The Witch used the heal potion!`);
+             } else if (action.type === 'kill' && gameState.witchPotions.kill && action.target) {
+                const target = getPlayerByName(action.target);
+                if (target && target.isAlive) {
+                    target.isAlive = false;
+                    if(gameState.isSoundOn) sounds.attackSound();
+                    logEvent(`The Witch used the kill potion on ${target.name}! They were a ${target.role}.`);
+                    handlePlayerDeath(target);
+                }
+                gameState.witchPotions.kill = false;
+             } else {
+                 logEvent(`The Witch did nothing.`);
+             }
         }
         
         updatePhaseDisplay('Resolving the night...');
@@ -903,7 +993,25 @@
         } else if (sortedVotes.length > 1 && sortedVotes[0][1] === sortedVotes[1][1]) {
             logEvent("The vote is tied!");
             if(gameState.mayor) {
-                // ... (Tie-break logic)
+                logEvent(`Mayor ${gameState.mayor} will break the tie.`);
+                const tiedPlayers = sortedVotes.filter(v => v[1] === sortedVotes[0][1]).map(v => v[0]);
+                const mayorPlayer = getPlayerByName(gameState.mayor);
+                if (mayorPlayer.isHuman) {
+                    renderActionPanelForTieBreak(tiedPlayers);
+                    eliminatedPlayerName = await waitForHumanAction();
+                } else {
+                    // AI Mayor tie-break
+                    const prompt = createPrompt(mayorPlayer, "day_vote", { targets: tiedPlayers });
+                    const response = await callGemini(prompt, mayorPlayer);
+                    try {
+                        logEvent(`🧠 ${mayorPlayer.name}'s thoughts: ${response.reasoning}`, mayorPlayer, true);
+                        mayorPlayer.scratchpad = response.updatedScratchpad;
+                        eliminatedPlayerName = response.vote;
+                    } catch (e) {
+                        eliminatedPlayerName = tiedPlayers[Math.floor(Math.random() * tiedPlayers.length)];
+                    }
+                }
+                logEvent(`The Mayor has decided to eliminate ${eliminatedPlayerName}.`);
             } else {
                 logEvent("With no mayor, the vote fails. No one is eliminated.");
             }
@@ -1223,4 +1331,3 @@
 
 </body>
 </html>
-
